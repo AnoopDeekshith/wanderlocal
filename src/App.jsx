@@ -600,17 +600,29 @@ const MatchCard = ({ dest, rank, onPlanTrip, onDeepDive, answers, userCity }) =>
 
   const handlePlanTrip = async () => {
     setLoadingPlan(true); setPlanError(false);
-    const days = Math.min(answers?.duration || 5, 7);
-    const origin = userCity || answers?.originCity || "your city";
-    const prompt = `Origin: ${origin}\nDestination: ${dest.place}\nDuration: ${days} days\nBudget: ${answers?.budget || "medium"}\nGroup: ${answers?.group || "solo"}\nMood: ${answers?.mood || "explore"}\nMonth: ${answers?.month || "March"}\n\nCreate a complete ${days}-day itinerary with real 2026 flight prices from ${origin} to ${dest.place}. Include all ${days} days. Real place names. Accurate USD pricing.`;
+    const days = Math.min(answers?.duration || 5, 5); // cap at 5 to keep JSON manageable
+    const origin = answers?.originCity || "California, USA";
+    const prompt = `Origin: ${origin} | Destination: ${dest.place} | Duration: ${days} days | Budget: ${answers?.budget || "medium"} | Group: ${answers?.group || "solo"} | Month: ${answers?.month || "March"}. Create a complete ${days}-day itinerary with real place names and accurate 2026 USD pricing.`;
     try {
-      const raw = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 8000, system: ITINERARY_PROMPT, messages: [{ role: "user", content: prompt }] }) });
+      const apiKey = getApiKey();
+      const raw = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 6000, system: ITINERARY_PROMPT, messages: [{ role: "user", content: prompt }] })
+      });
       const data = await raw.json();
+      if (data.error) { setPlanError(true); setLoadingPlan(false); return; }
       const text = data.content?.[0]?.text || "";
       let itin = null;
-      try { itin = JSON.parse(text.replace(/```json|```/g, "").trim()); }
-      catch { const s = text.indexOf("{"); const e = text.lastIndexOf("}"); if (s !== -1 && e !== -1) { try { itin = JSON.parse(text.slice(s, e + 1)); } catch {} } }
-      if (itin && itin.days) { onPlanTrip(itin); } else { setPlanError(true); }
+      // 3-pass JSON extraction
+      try { itin = JSON.parse(text.replace(/```json|```/g, "").trim()); } catch {}
+      if (!itin) { try { const s = text.indexOf("{"); const e = text.lastIndexOf("}"); if (s !== -1 && e !== -1) itin = JSON.parse(text.slice(s, e + 1)); } catch {} }
+      if (!itin) { // last resort: try to find any valid JSON object with a days array
+        const m = text.match(/\{[\s\S]*"days"[\s\S]*\}/);
+        if (m) { try { itin = JSON.parse(m[0]); } catch {} }
+      }
+      if (itin?.days?.length) { onPlanTrip(itin); }
+      else { setPlanError(true); }
     } catch { setPlanError(true); }
     setLoadingPlan(false);
   };
@@ -905,7 +917,7 @@ export default function WanderLocal() {
     const nm = [...messages, { role: "user", content: t }];
     setMessages(nm); setLoading(true);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1500, system: INTEL_PROMPT, messages: nm.map(m => ({ role: m.role, content: m.content })) }) });
+      const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": getApiKey(), "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1500, system: INTEL_PROMPT, messages: nm.map(m => ({ role: m.role, content: m.content })) }) });
       const data = await res.json();
       const raw = data.content?.[0]?.text || "";
       let parsed = null;
