@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/wanderlocal/static/js/main.63aff77a.js",
+    "main.js": "/wanderlocal/static/js/main.e9748abc.js",
     "index.html": "/wanderlocal/index.html",
-    "main.63aff77a.js.map": "/wanderlocal/static/js/main.63aff77a.js.map"
+    "main.e9748abc.js.map": "/wanderlocal/static/js/main.e9748abc.js.map"
   },
   "entrypoints": [
-    "static/js/main.63aff77a.js"
+    "static/js/main.e9748abc.js"
   ]
 }
